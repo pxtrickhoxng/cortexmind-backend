@@ -67,7 +67,7 @@ const useAi = async (
       model: "deepseek-chat",
       stream: true,
       temperature: temperature,
-      max_tokens: 100,
+      max_tokens: 500,
     });
 
     for await (const chunk of stream) {

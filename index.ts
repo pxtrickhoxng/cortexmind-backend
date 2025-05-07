@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
 import { Request, Response } from "express";
-import useAi from "./openai"; // no .ts extension needed
+import useAi from "./openai";
 import { saveConvoType, submitType } from "./types";
+import "dotenv/config";
 
 const app = express();
 app.use(cors());
