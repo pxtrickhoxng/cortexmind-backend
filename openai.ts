@@ -1,11 +1,15 @@
 import OpenAI from "openai";
 import "dotenv/config";
 import { Response } from "express";
+import { neon } from "@neondatabase/serverless";
 
 const openai = new OpenAI({
   baseURL: "https://api.deepseek.com",
   apiKey: process.env.SECRET_KEY,
 });
+
+const sql = neon(process.env.DATABASE_URL!);
+const aiRole = "Role.Assistant";
 
 enum Role {
   User = "user",
@@ -22,7 +26,7 @@ let messageHistory = [
 
 const useAi = async (
   userInput: string[],
-  aiOutput: string[] = [],
+  aiOutput: string[],
   res: Response,
   selectedOption: string,
   appendHistory: boolean = false
@@ -51,28 +55,46 @@ const useAi = async (
 
   const messages = [...messageHistory];
 
-  if (appendHistory) {
-    if (aiOutput[aiOutput.length - 1]) {
-      messages.push({ role: Role.Assistant, content: aiOutput[aiOutput.length - 1] });
-    }
-  } else {
-    messages.push({ role: Role.User, content: userInput[userInput.length - 1] });
-  }
+  messages.push({ role: Role.User, content: userInput[userInput.length - 1] });
 
-  console.log(messages);
+  if (appendHistory) {
+    messages.push({ role: Role.Assistant, content: aiOutput[aiOutput.length - 1] });
+
+    messageHistory = [...messages];
+
+    return;
+  }
 
   try {
     const stream = await openai.chat.completions.create({
       messages,
       model: "deepseek-chat",
       stream: true,
-      temperature: temperature,
+      temperature,
       max_tokens: 500,
     });
 
+    let fullResponse = "";
+
     for await (const chunk of stream) {
-      res.write(chunk.choices[0]?.delta?.content || "");
+      const content = chunk.choices[0]?.delta?.content || "";
+      fullResponse += content;
+      res.write(content);
     }
+
+    messages.push({ role: Role.Assistant, content: fullResponse });
+
+    try {
+      await sql`
+        INSERT INTO public.user_chat_history (content, role, timestamp, user_id)
+        VALUES (${fullResponse}, ${aiRole}, CURRENT_TIMESTAMP, 1 )
+      `;
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to insert into database" });
+    }
+
+    console.log(messages);
 
     messageHistory = [...messages];
   } catch (error) {
