@@ -20,16 +20,25 @@ enum Role {
 let messageHistory = [
   {
     role: Role.System,
-    content: "Respond using markdown formatting.",
+    content: `You are an assistant that responds using proper markdown formatting **when appropriate**.
+              Use bullet points, bold/italic text, and headings for clarity. 
+              Use code blocks only when the user asks for code or when code examples are relevant.
+              Avoid formatting general facts or non-code answers inside code blocks.`,
   },
 ];
+
+export const resetMessageHistory = () => {
+  messageHistory.length = 1;
+};
 
 const useAi = async (
   userInput: string[],
   aiOutput: string[],
   res: Response,
   selectedOption: string,
-  appendHistory: boolean = false
+  appendHistory: boolean = false,
+  uuid: string,
+  userId: string
 ) => {
   let temperature: number;
 
@@ -86,15 +95,13 @@ const useAi = async (
 
     try {
       await sql`
-        INSERT INTO public.user_chat_history (content, role, timestamp, user_id)
-        VALUES (${fullResponse}, ${aiRole}, CURRENT_TIMESTAMP, 1 )
+        INSERT INTO public.user_chat_history (content, role, timestamp, user_id, chat_id)
+        VALUES (${fullResponse}, ${aiRole}, CURRENT_TIMESTAMP, ${userId}, ${uuid} )
       `;
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Failed to insert into database" });
     }
-
-    console.log(messages);
 
     messageHistory = [...messages];
   } catch (error) {
